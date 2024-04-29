@@ -5,9 +5,14 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/google/uuid"
+	api "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -15,41 +20,100 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Ensure ScaffoldingProvider satisfies various provider interfaces.
-var _ provider.Provider = &ScaffoldingProvider{}
-var _ provider.ProviderWithFunctions = &ScaffoldingProvider{}
+// Ensure UtilsProvider satisfies various provider interfaces.
+var _ provider.Provider = &UtilsProvider{}
+var _ provider.ProviderWithFunctions = &UtilsProvider{}
 
-// ScaffoldingProvider defines the provider implementation.
-type ScaffoldingProvider struct {
+// UtilsProvider defines the provider implementation.
+type UtilsProvider struct {
 	// version is set to the provider version on release, "dev" when the
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
 	version string
 }
 
-// ScaffoldingProviderModel describes the provider data model.
-type ScaffoldingProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
+// UtilsProviderModel describes the provider data model.
+type UtilsProviderModel struct {
+	ConsulClusterAddress types.String `tfsdk:"consul_cluster_address"`
+	ConsulToken          types.String `tfsdk:"consul_token"`
+	AclAuthMethod        types.String `tfsdk:"acl_auth_method"`
 }
 
-func (p *ScaffoldingProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "scaffolding"
+func IsValidUUID(u string) bool {
+	_, err := uuid.Parse(u)
+	return err == nil
+}
+
+func loginToConsul(httpClient *http.Client, providerModel UtilsProviderModel, diagnostics *diag.Diagnostics) (*api.Client, error) {
+	consulConfig := api.Config{
+		Address:    strings.Split(providerModel.ConsulClusterAddress.String(), "://")[1],
+		HttpClient: httpClient,
+		Scheme:     strings.Split(providerModel.ConsulClusterAddress.String(), "://")[0],
+	}
+
+	client, err := api.NewClient(&consulConfig)
+
+	if err != nil {
+		diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create consul client, got error: %s", err))
+		return nil, err
+	}
+
+	var aclToken string
+
+	if IsValidUUID(providerModel.ConsulToken.String()) {
+		aclToken = providerModel.ConsulToken.String()
+	} else {
+		token, _, err := client.ACL().Login(&api.ACLLoginParams{
+			AuthMethod:  providerModel.AclAuthMethod.String(),
+			BearerToken: providerModel.ConsulToken.String(),
+		}, nil)
+
+		if err != nil {
+			diagnostics.AddError("Client Error", fmt.Sprintf("Unable to authenticate to consul, got error: %s", err))
+			return nil, err
+		}
+
+		aclToken = token.SecretID
+	}
+
+	consulConfig.Token = aclToken
+
+	client, err = api.NewClient(&consulConfig)
+
+	if err != nil {
+		diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create consul client, got error: %s", err))
+		return nil, err
+	}
+
+	return client, nil
+}
+
+func (p *UtilsProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "utils"
 	resp.Version = p.version
 }
 
-func (p *ScaffoldingProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *UtilsProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"endpoint": schema.StringAttribute{
-				MarkdownDescription: "Example provider attribute",
-				Optional:            true,
+			"consul_cluster_address": schema.StringAttribute{
+				MarkdownDescription: "The address of the Consul cluster.",
+				Required:            true,
+			},
+			"consul_token": schema.StringAttribute{
+				MarkdownDescription: "The token used to authenticate to the consul cluster. Can be a JWT formatted token or a UUIDv4 secret ID",
+				Required:            true,
+			},
+			"acl_auth_method": schema.StringAttribute{
+				MarkdownDescription: "Auth method used when the token is JWT encoded. Not needed if the token is a UUIDv4 secret ID.",
+				Required:            true,
 			},
 		},
 	}
 }
 
-func (p *ScaffoldingProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	var data ScaffoldingProviderModel
+func (p *UtilsProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	var data UtilsProviderModel
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 
@@ -57,36 +121,34 @@ func (p *ScaffoldingProvider) Configure(ctx context.Context, req provider.Config
 		return
 	}
 
-	// Configuration values are now available.
-	// if data.Endpoint.IsNull() { /* ... */ }
+	client, err := loginToConsul(http.DefaultClient, data, &resp.Diagnostics)
+
+	if err != nil {
+		return
+	}
 
 	// Example client configuration for data sources and resources
-	client := http.DefaultClient
 	resp.DataSourceData = client
 	resp.ResourceData = client
 }
 
-func (p *ScaffoldingProvider) Resources(ctx context.Context) []func() resource.Resource {
+func (p *UtilsProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewExampleResource,
+		NewConsulExportedServiceResource,
 	}
 }
 
-func (p *ScaffoldingProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{
-		NewExampleDataSource,
-	}
+func (p *UtilsProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+	return []func() datasource.DataSource{}
 }
 
-func (p *ScaffoldingProvider) Functions(ctx context.Context) []func() function.Function {
-	return []func() function.Function{
-		NewExampleFunction,
-	}
+func (p *UtilsProvider) Functions(ctx context.Context) []func() function.Function {
+	return []func() function.Function{}
 }
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &ScaffoldingProvider{
+		return &UtilsProvider{
 			version: version,
 		}
 	}

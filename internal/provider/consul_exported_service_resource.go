@@ -117,11 +117,11 @@ func (r *ConsulExportedServiceResource) Create(ctx context.Context, req resource
 	inserted := false
 
 	newConsumer := api.ServiceConsumer{
-		Peer: data.PeerName.String(),
+		Peer: data.PeerName.ValueString(),
 	}
 
 	for _, service := range exportedServiceConfigEntry.Services {
-		if service.Name == data.ServiceToExport.String() {
+		if service.Name == data.ServiceToExport.ValueString() {
 			service.Consumers = append(service.Consumers, newConsumer)
 			inserted = true
 		}
@@ -129,7 +129,7 @@ func (r *ConsulExportedServiceResource) Create(ctx context.Context, req resource
 
 	if !inserted {
 		exportedServiceConfigEntry.Services = append(exportedServiceConfigEntry.Services, api.ExportedService{
-			Name: data.ServiceToExport.String(),
+			Name: data.ServiceToExport.ValueString(),
 			Consumers: []api.ServiceConsumer{
 				newConsumer,
 			},
@@ -143,7 +143,7 @@ func (r *ConsulExportedServiceResource) Create(ctx context.Context, req resource
 		return
 	}
 
-	data.Id = types.StringValue(fmt.Sprintf("%s_%s", data.PeerName, data.ServiceToExport))
+	data.Id = types.StringValue(fmt.Sprintf("%s_%s", data.PeerName.ValueString(), data.ServiceToExport.ValueString()))
 
 	tflog.Trace(ctx, "exported service")
 
@@ -170,10 +170,10 @@ func (r *ConsulExportedServiceResource) Read(ctx context.Context, req resource.R
 	exportedServiceConfigEntry := configEntry.(*api.ExportedServicesConfigEntry)
 
 	for _, service := range exportedServiceConfigEntry.Services {
-		if service.Name == data.ServiceToExport.String() {
+		if service.Name == data.ServiceToExport.ValueString() {
 			for _, consumer := range service.Consumers {
-				if consumer.Peer == data.PeerName.String() {
-					data.Id = types.StringValue(fmt.Sprintf("%s_%s", data.PeerName, data.ServiceToExport))
+				if consumer.Peer == data.PeerName.ValueString() {
+					data.Id = types.StringValue(fmt.Sprintf("%s_%s", data.PeerName.ValueString(), data.ServiceToExport.ValueString()))
 					resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 					return
 				}
@@ -208,11 +208,11 @@ func (r *ConsulExportedServiceResource) Update(ctx context.Context, req resource
 	exportedServiceConfigEntry := configEntry.(*api.ExportedServicesConfigEntry)
 
 	for _, service := range exportedServiceConfigEntry.Services {
-		if service.Name == oldData.ServiceToExport.String() {
+		if service.Name == oldData.ServiceToExport.ValueString() {
 			consumerToRemove := -1
 
 			for i, consumer := range service.Consumers {
-				if consumer.Peer == oldData.PeerName.String() {
+				if consumer.Peer == oldData.PeerName.ValueString() {
 					consumerToRemove = i
 					break
 				}
@@ -225,13 +225,13 @@ func (r *ConsulExportedServiceResource) Update(ctx context.Context, req resource
 	}
 
 	newConsumer := api.ServiceConsumer{
-		Peer: data.PeerName.String(),
+		Peer: data.PeerName.ValueString(),
 	}
 
 	inserted := false
 
 	for _, service := range exportedServiceConfigEntry.Services {
-		if service.Name == data.ServiceToExport.String() {
+		if service.Name == data.ServiceToExport.ValueString() {
 			service.Consumers = append(service.Consumers, newConsumer)
 			inserted = true
 		}
@@ -239,7 +239,7 @@ func (r *ConsulExportedServiceResource) Update(ctx context.Context, req resource
 
 	if !inserted {
 		exportedServiceConfigEntry.Services = append(exportedServiceConfigEntry.Services, api.ExportedService{
-			Name: data.ServiceToExport.String(),
+			Name: data.ServiceToExport.ValueString(),
 			Consumers: []api.ServiceConsumer{
 				newConsumer,
 			},
@@ -253,7 +253,7 @@ func (r *ConsulExportedServiceResource) Update(ctx context.Context, req resource
 		return
 	}
 
-	data.Id = types.StringValue(fmt.Sprintf("%s_%s", data.PeerName, data.ServiceToExport))
+	data.Id = types.StringValue(fmt.Sprintf("%s_%s", data.PeerName.ValueString(), data.ServiceToExport.ValueString()))
 
 	tflog.Trace(ctx, "exported service")
 
@@ -280,11 +280,11 @@ func (r *ConsulExportedServiceResource) Delete(ctx context.Context, req resource
 	exportedServiceConfigEntry := configEntry.(*api.ExportedServicesConfigEntry)
 
 	for _, service := range exportedServiceConfigEntry.Services {
-		if service.Name == data.ServiceToExport.String() {
+		if service.Name == data.ServiceToExport.ValueString() {
 			consumerToRemove := -1
 
 			for i, consumer := range service.Consumers {
-				if consumer.Peer == data.PeerName.String() {
+				if consumer.Peer == data.PeerName.ValueString() {
 					consumerToRemove = i
 					break
 				}

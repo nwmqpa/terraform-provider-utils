@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/google/uuid"
 	api "github.com/hashicorp/consul/api"
@@ -45,10 +47,44 @@ func IsValidUUID(u string) bool {
 }
 
 func loginToConsul(httpClient *http.Client, providerModel UtilsProviderModel, diagnostics *diag.Diagnostics) (*api.Client, error) {
+	consulAddress := "127.0.0.1:8500"
+	consulScheme := "http"
+	var consulToken string
+
+	consulHttpAddrEnv := os.Getenv("CONSUL_HTTP_ADDR")
+
+	if providerModel.ConsulClusterAddress.IsNull() {
+		if consulHttpAddrEnv != "" && strings.Contains(consulHttpAddrEnv, "://") {
+			consulAddress = strings.Split(consulHttpAddrEnv, "://")[1]
+		} else if consulHttpAddrEnv != "" {
+			consulAddress = consulHttpAddrEnv
+		}
+	} else {
+		consulAddress = providerModel.ConsulClusterAddress.ValueString()
+	}
+
+	if providerModel.ConsulClusterScheme.IsNull() {
+		if consulHttpAddrEnv != "" && strings.Contains(consulHttpAddrEnv, "://") {
+			consulScheme = strings.Split(consulHttpAddrEnv, "://")[0]
+		}
+	} else {
+		consulScheme = providerModel.ConsulClusterScheme.ValueString()
+	}
+
+	if providerModel.ConsulToken.IsNull() {
+		if os.Getenv("CONSUL_HTTP_TOKEN") != "" {
+			consulToken = os.Getenv("CONSUL_HTTP_TOKEN")
+		} else {
+			diagnostics.AddError("Client Error", "Unable to locate initial consul token")
+		}
+	} else {
+		consulToken = providerModel.ConsulToken.ValueString()
+	}
+
 	consulConfig := api.Config{
-		Address:    providerModel.ConsulClusterAddress.String(),
+		Address:    consulAddress,
+		Scheme:     consulScheme,
 		HttpClient: httpClient,
-		Scheme:     providerModel.ConsulClusterScheme.String(),
 	}
 
 	client, err := api.NewClient(&consulConfig)
@@ -60,12 +96,12 @@ func loginToConsul(httpClient *http.Client, providerModel UtilsProviderModel, di
 
 	var aclToken string
 
-	if IsValidUUID(providerModel.ConsulToken.String()) {
-		aclToken = providerModel.ConsulToken.String()
-	} else {
+	if IsValidUUID(consulToken) {
+		aclToken = consulToken
+	} else if !providerModel.AclAuthMethod.IsNull() {
 		token, _, err := client.ACL().Login(&api.ACLLoginParams{
-			AuthMethod:  providerModel.AclAuthMethod.String(),
-			BearerToken: providerModel.ConsulToken.String(),
+			AuthMethod:  providerModel.AclAuthMethod.ValueString(),
+			BearerToken: consulToken,
 		}, nil)
 
 		if err != nil {
@@ -74,6 +110,8 @@ func loginToConsul(httpClient *http.Client, providerModel UtilsProviderModel, di
 		}
 
 		aclToken = token.SecretID
+	} else {
+		diagnostics.AddError("Client Error", "Cannot authenticate using JWT token without acl auth method")
 	}
 
 	consulConfig.Token = aclToken
@@ -98,19 +136,19 @@ func (p *UtilsProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 		Attributes: map[string]schema.Attribute{
 			"consul_cluster_address": schema.StringAttribute{
 				MarkdownDescription: "The address of the Consul cluster.",
-				Required:            true,
+				Optional:            true,
 			},
 			"consul_cluster_scheme": schema.StringAttribute{
 				MarkdownDescription: "The scheme used to connect to the consul cluster. Can be http or https.",
-				Required:            true,
+				Optional:            true,
 			},
 			"consul_token": schema.StringAttribute{
 				MarkdownDescription: "The token used to authenticate to the consul cluster. Can be a JWT formatted token or a UUIDv4 secret ID",
-				Required:            true,
+				Optional:            true,
 			},
 			"acl_auth_method": schema.StringAttribute{
 				MarkdownDescription: "Auth method used when the token is JWT encoded. Not needed if the token is a UUIDv4 secret ID.",
-				Required:            true,
+				Optional:            true,
 			},
 		},
 	}
@@ -125,17 +163,13 @@ func (p *UtilsProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
-	client, err := loginToConsul(http.DefaultClient, data, &resp.Diagnostics)
-
-	if err != nil {
-		return
-	}
-
 	// Example client configuration for data sources and resources
 	resp.DataSourceData = func(diagnostics *diag.Diagnostics) (*api.Client, error) {
 		return loginToConsul(http.DefaultClient, data, diagnostics)
 	}
-	resp.ResourceData = client
+	resp.ResourceData = func(diagnostics *diag.Diagnostics) (*api.Client, error) {
+		return loginToConsul(http.DefaultClient, data, diagnostics)
+	}
 }
 
 func (p *UtilsProvider) Resources(ctx context.Context) []func() resource.Resource {

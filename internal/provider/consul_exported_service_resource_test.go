@@ -19,38 +19,35 @@ func TestAccConsulExportedServiceResource(t *testing.T) {
 			{
 				Config: testAccConsulExportedServiceResourceConfig("one"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("scaffolding_example.test", "configurable_attribute", "one"),
-					resource.TestCheckResourceAttr("scaffolding_example.test", "defaulted", "example value when not configured"),
-					resource.TestCheckResourceAttr("scaffolding_example.test", "id", "example-id"),
+					resource.TestCheckResourceAttr("utils_consul_exported_service.test", "peer_name", "invalid-peer"),
+					resource.TestCheckResourceAttr("utils_consul_exported_service.test", "service_to_export", "invalid-service-one"),
+					resource.TestCheckResourceAttr("utils_consul_exported_service.test", "id", "invalid-peer_invalid-service-one"),
 				),
 			},
 			// ImportState testing
-			{
-				ResourceName:      "scaffolding_example.test",
-				ImportState:       true,
-				ImportStateVerify: true,
-				// This is not normally necessary, but is here because this
-				// example code does not have an actual upstream service.
-				// Once the Read method is able to refresh information from
-				// the upstream service, this can be removed.
-				ImportStateVerifyIgnore: []string{"configurable_attribute", "defaulted"},
-			},
+			// {
+			// 	ResourceName:      "utils_consul_exported_service.test",
+			// 	ImportState:       true,
+			// 	ImportStateVerify: true,
+			// },
 			// Update and Read testing
 			{
 				Config: testAccConsulExportedServiceResourceConfig("two"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("scaffolding_example.test", "configurable_attribute", "two"),
+					resource.TestCheckResourceAttr("utils_consul_exported_service.test", "service_to_export", "invalid-service-two"),
+					resource.TestCheckResourceAttr("utils_consul_exported_service.test", "id", "invalid-peer_invalid-service-two"),
 				),
 			},
-			// Delete testing automatically occurs in TestCase
+			// Delete testing
 		},
 	})
 }
 
 func testAccConsulExportedServiceResourceConfig(configurableAttribute string) string {
 	return fmt.Sprintf(`
-resource "scaffolding_example" "test" {
-  configurable_attribute = %[1]q
+resource "utils_consul_exported_service" "test" {
+	peer_name = "invalid-peer"
+	service_to_export = "invalid-service-%[1]s"
 }
 `, configurableAttribute)
 }

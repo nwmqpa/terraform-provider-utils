@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	api "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -21,6 +22,9 @@ import (
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.Resource = &ConsulExportedServiceResource{}
 var _ resource.ResourceWithImportState = &ConsulExportedServiceResource{}
+
+// Allows for modification of exported-service only once at a time
+var lock sync.Mutex
 
 func NewConsulExportedServiceResource() resource.Resource {
 	return &ConsulExportedServiceResource{}
@@ -104,6 +108,9 @@ func (r *ConsulExportedServiceResource) Create(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	lock.Lock()
+	defer lock.Unlock()
 
 	configEntry, _, err := r.client.ConfigEntries().Get("exported-services", "default", nil)
 
@@ -198,6 +205,9 @@ func (r *ConsulExportedServiceResource) Update(ctx context.Context, req resource
 		return
 	}
 
+	lock.Lock()
+	defer lock.Unlock()
+
 	configEntry, _, err := r.client.ConfigEntries().Get("exported-services", "default", nil)
 
 	if err != nil {
@@ -269,6 +279,9 @@ func (r *ConsulExportedServiceResource) Delete(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	lock.Lock()
+	defer lock.Unlock()
 
 	configEntry, _, err := r.client.ConfigEntries().Get("exported-services", "default", nil)
 

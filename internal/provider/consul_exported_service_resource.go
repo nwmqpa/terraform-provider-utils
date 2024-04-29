@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	api "github.com/hashicorp/consul/api"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -78,9 +79,11 @@ func (r *ConsulExportedServiceResource) Configure(ctx context.Context, req resou
 		return
 	}
 
-	client, ok := req.ProviderData.(*api.Client)
+	createClient := req.ProviderData.(func(diagnostics *diag.Diagnostics) (*api.Client, error))
 
-	if !ok {
+	client, err := createClient(&resp.Diagnostics)
+
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf("Expected *http.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),

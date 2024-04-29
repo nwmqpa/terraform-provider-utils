@@ -14,7 +14,8 @@ description: |-
 
 ```terraform
 provider "utils" {
-  consul_cluster_address = "https://cluster.example.com"
+  consul_cluster_address = "cluster.example.com"
+  consul_cluster_scheme  = "https"
   # Example token
   consul_token = "4e24aacc-7d60-4050-913b-2ad101cbae0c"
 }
@@ -26,5 +27,6 @@ provider "utils" {
 ### Required
 
 - `acl_auth_method` (String) Auth method used when the token is JWT encoded. Not needed if the token is a UUIDv4 secret ID.
+- `consul_cluser_scheme` (String) The scheme used to connect to the consul cluster. Can be http or https.
 - `consul_cluster_address` (String) The address of the Consul cluster.
 - `consul_token` (String) The token used to authenticate to the consul cluster. Can be a JWT formatted token or a UUIDv4 secret ID

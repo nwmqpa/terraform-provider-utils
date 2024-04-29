@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 	api "github.com/hashicorp/consul/api"
@@ -35,6 +34,7 @@ type UtilsProvider struct {
 // UtilsProviderModel describes the provider data model.
 type UtilsProviderModel struct {
 	ConsulClusterAddress types.String `tfsdk:"consul_cluster_address"`
+	ConsulClusterScheme  types.String `tfsdk:"consul_cluster_scheme"`
 	ConsulToken          types.String `tfsdk:"consul_token"`
 	AclAuthMethod        types.String `tfsdk:"acl_auth_method"`
 }
@@ -46,9 +46,9 @@ func IsValidUUID(u string) bool {
 
 func loginToConsul(httpClient *http.Client, providerModel UtilsProviderModel, diagnostics *diag.Diagnostics) (*api.Client, error) {
 	consulConfig := api.Config{
-		Address:    strings.Split(providerModel.ConsulClusterAddress.String(), "://")[1],
+		Address:    providerModel.ConsulClusterAddress.String(),
 		HttpClient: httpClient,
-		Scheme:     strings.Split(providerModel.ConsulClusterAddress.String(), "://")[0],
+		Scheme:     providerModel.ConsulClusterScheme.String(),
 	}
 
 	client, err := api.NewClient(&consulConfig)
@@ -100,6 +100,10 @@ func (p *UtilsProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 				MarkdownDescription: "The address of the Consul cluster.",
 				Required:            true,
 			},
+			"consul_cluser_scheme": schema.StringAttribute{
+				MarkdownDescription: "The scheme used to connect to the consul cluster. Can be http or https.",
+				Required:            true,
+			},
 			"consul_token": schema.StringAttribute{
 				MarkdownDescription: "The token used to authenticate to the consul cluster. Can be a JWT formatted token or a UUIDv4 secret ID",
 				Required:            true,
@@ -128,7 +132,9 @@ func (p *UtilsProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	}
 
 	// Example client configuration for data sources and resources
-	resp.DataSourceData = client
+	resp.DataSourceData = func(diagnostics *diag.Diagnostics) (*api.Client, error) {
+		return loginToConsul(http.DefaultClient, data, diagnostics)
+	}
 	resp.ResourceData = client
 }
 

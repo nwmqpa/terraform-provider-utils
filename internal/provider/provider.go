@@ -100,7 +100,7 @@ func (p *UtilsProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 				MarkdownDescription: "The address of the Consul cluster.",
 				Required:            true,
 			},
-			"consul_cluser_scheme": schema.StringAttribute{
+			"consul_cluster_scheme": schema.StringAttribute{
 				MarkdownDescription: "The scheme used to connect to the consul cluster. Can be http or https.",
 				Required:            true,
 			},

@@ -24,7 +24,7 @@ var _ resource.Resource = &ConsulExportedServiceResource{}
 var _ resource.ResourceWithImportState = &ConsulExportedServiceResource{}
 
 // Allows for modification of exported-service only once at a time
-var lock sync.Mutex
+var exportedServiceLock sync.Mutex
 
 func NewConsulExportedServiceResource() resource.Resource {
 	return &ConsulExportedServiceResource{}
@@ -109,8 +109,8 @@ func (r *ConsulExportedServiceResource) Create(ctx context.Context, req resource
 		return
 	}
 
-	lock.Lock()
-	defer lock.Unlock()
+	exportedServiceLock.Lock()
+	defer exportedServiceLock.Unlock()
 
 	configEntry, _, err := r.client.ConfigEntries().Get("exported-services", "default", nil)
 
@@ -205,8 +205,8 @@ func (r *ConsulExportedServiceResource) Update(ctx context.Context, req resource
 		return
 	}
 
-	lock.Lock()
-	defer lock.Unlock()
+	exportedServiceLock.Lock()
+	defer exportedServiceLock.Unlock()
 
 	configEntry, _, err := r.client.ConfigEntries().Get("exported-services", "default", nil)
 
@@ -280,8 +280,8 @@ func (r *ConsulExportedServiceResource) Delete(ctx context.Context, req resource
 		return
 	}
 
-	lock.Lock()
-	defer lock.Unlock()
+	exportedServiceLock.Lock()
+	defer exportedServiceLock.Unlock()
 
 	configEntry, _, err := r.client.ConfigEntries().Get("exported-services", "default", nil)
 

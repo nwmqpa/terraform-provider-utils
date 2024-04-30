@@ -175,6 +175,7 @@ func (p *UtilsProvider) Configure(ctx context.Context, req provider.ConfigureReq
 func (p *UtilsProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewConsulExportedServiceResource,
+		NewConsulSingleIntentionResource,
 	}
 }
 

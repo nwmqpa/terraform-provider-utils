@@ -26,6 +26,30 @@ var _ resource.ResourceWithImportState = &ConsulExportedServiceResource{}
 // Allows for modification of exported-service only once at a time
 var exportedServiceLock sync.Mutex
 
+func readExportedServices(client *api.Client) *api.ExportedServicesConfigEntry {
+	configEntry, _, err := client.ConfigEntries().Get("service-intentions", "default", nil)
+
+	if err != nil {
+		return &api.ExportedServicesConfigEntry{
+			Name: "default",
+		}
+	}
+
+	return configEntry.(*api.ExportedServicesConfigEntry)
+}
+
+func writeExportedServices(client *api.Client, configEntry *api.ExportedServicesConfigEntry) error {
+	var err error
+
+	if len(configEntry.Services) == 0 {
+		_, err = client.ConfigEntries().Delete("service-intentions", "default", nil)
+	} else {
+		_, _, err = client.ConfigEntries().Set(configEntry, nil)
+	}
+
+	return err
+}
+
 func NewConsulExportedServiceResource() resource.Resource {
 	return &ConsulExportedServiceResource{}
 }
@@ -112,14 +136,7 @@ func (r *ConsulExportedServiceResource) Create(ctx context.Context, req resource
 	exportedServiceLock.Lock()
 	defer exportedServiceLock.Unlock()
 
-	configEntry, _, err := r.client.ConfigEntries().Get("exported-services", "default", nil)
-
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read exported services, got error: %s", err))
-		return
-	}
-
-	exportedServiceConfigEntry := configEntry.(*api.ExportedServicesConfigEntry)
+	exportedServiceConfigEntry := readExportedServices(r.client)
 
 	inserted := false
 
@@ -143,7 +160,7 @@ func (r *ConsulExportedServiceResource) Create(ctx context.Context, req resource
 		})
 	}
 
-	_, _, err = r.client.ConfigEntries().Set(exportedServiceConfigEntry, nil)
+	err := writeExportedServices(r.client, exportedServiceConfigEntry)
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to write exported services, got error: %s", err))
@@ -167,14 +184,7 @@ func (r *ConsulExportedServiceResource) Read(ctx context.Context, req resource.R
 		return
 	}
 
-	configEntry, _, err := r.client.ConfigEntries().Get("exported-services", "default", nil)
-
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read exported services, got error: %s", err))
-		return
-	}
-
-	exportedServiceConfigEntry := configEntry.(*api.ExportedServicesConfigEntry)
+	exportedServiceConfigEntry := readExportedServices(r.client)
 
 	for _, service := range exportedServiceConfigEntry.Services {
 		if service.Name == data.ServiceToExport.ValueString() {
@@ -208,14 +218,7 @@ func (r *ConsulExportedServiceResource) Update(ctx context.Context, req resource
 	exportedServiceLock.Lock()
 	defer exportedServiceLock.Unlock()
 
-	configEntry, _, err := r.client.ConfigEntries().Get("exported-services", "default", nil)
-
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read exported services, got error: %s", err))
-		return
-	}
-
-	exportedServiceConfigEntry := configEntry.(*api.ExportedServicesConfigEntry)
+	exportedServiceConfigEntry := readExportedServices(r.client)
 
 	for _, service := range exportedServiceConfigEntry.Services {
 		if service.Name == oldData.ServiceToExport.ValueString() {
@@ -256,7 +259,7 @@ func (r *ConsulExportedServiceResource) Update(ctx context.Context, req resource
 		})
 	}
 
-	_, _, err = r.client.ConfigEntries().Set(exportedServiceConfigEntry, nil)
+	err := writeExportedServices(r.client, exportedServiceConfigEntry)
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to write exported services, got error: %s", err))
@@ -283,14 +286,7 @@ func (r *ConsulExportedServiceResource) Delete(ctx context.Context, req resource
 	exportedServiceLock.Lock()
 	defer exportedServiceLock.Unlock()
 
-	configEntry, _, err := r.client.ConfigEntries().Get("exported-services", "default", nil)
-
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read exported services, got error: %s", err))
-		return
-	}
-
-	exportedServiceConfigEntry := configEntry.(*api.ExportedServicesConfigEntry)
+	exportedServiceConfigEntry := readExportedServices(r.client)
 
 	for _, service := range exportedServiceConfigEntry.Services {
 		if service.Name == data.ServiceToExport.ValueString() {
@@ -309,7 +305,7 @@ func (r *ConsulExportedServiceResource) Delete(ctx context.Context, req resource
 		}
 	}
 
-	_, _, err = r.client.ConfigEntries().Set(exportedServiceConfigEntry, nil)
+	err := writeExportedServices(r.client, exportedServiceConfigEntry)
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to write exported services, got error: %s", err))

@@ -176,6 +176,7 @@ func (p *UtilsProvider) Resources(ctx context.Context) []func() resource.Resourc
 	return []func() resource.Resource{
 		NewConsulExportedServiceResource,
 		NewConsulSingleIntentionResource,
+		NewConsulKeyResource,
 	}
 }
 

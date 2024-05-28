@@ -198,7 +198,7 @@ func (r *ConsulSingleIntentionResource) Create(ctx context.Context, req resource
 		data.Id = types.StringValue(fmt.Sprintf("%s_%s", data.DestinationService.ValueString(), data.SourceService.ValueString()))
 	}
 
-	tflog.Trace(ctx, "exported service")
+	tflog.Debug(ctx, "exported service")
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -305,7 +305,7 @@ func (r *ConsulSingleIntentionResource) Update(ctx context.Context, req resource
 		data.Id = types.StringValue(fmt.Sprintf("%s_%s", data.DestinationService.ValueString(), data.SourceService.ValueString()))
 	}
 
-	tflog.Trace(ctx, "exported service")
+	tflog.Debug(ctx, "exported service")
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

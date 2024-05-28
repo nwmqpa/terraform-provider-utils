@@ -27,7 +27,7 @@ var _ resource.ResourceWithImportState = &ConsulExportedServiceResource{}
 var exportedServiceLock sync.Mutex
 
 func readExportedServices(client *api.Client) *api.ExportedServicesConfigEntry {
-	configEntry, _, err := client.ConfigEntries().Get("service-intentions", "default", nil)
+	configEntry, _, err := client.ConfigEntries().Get("exported-services", "default", nil)
 
 	if err != nil {
 		return &api.ExportedServicesConfigEntry{
@@ -42,7 +42,7 @@ func writeExportedServices(client *api.Client, configEntry *api.ExportedServices
 	var err error
 
 	if len(configEntry.Services) == 0 {
-		_, err = client.ConfigEntries().Delete("service-intentions", "default", nil)
+		_, err = client.ConfigEntries().Delete("exported-services", "default", nil)
 	} else {
 		_, _, err = client.ConfigEntries().Set(configEntry, nil)
 	}
@@ -169,7 +169,7 @@ func (r *ConsulExportedServiceResource) Create(ctx context.Context, req resource
 
 	data.Id = types.StringValue(fmt.Sprintf("%s_%s", data.PeerName.ValueString(), data.ServiceToExport.ValueString()))
 
-	tflog.Trace(ctx, "exported service")
+	tflog.Debug(ctx, "exported service")
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -220,22 +220,7 @@ func (r *ConsulExportedServiceResource) Update(ctx context.Context, req resource
 
 	exportedServiceConfigEntry := readExportedServices(r.client)
 
-	for _, service := range exportedServiceConfigEntry.Services {
-		if service.Name == oldData.ServiceToExport.ValueString() {
-			consumerToRemove := -1
-
-			for i, consumer := range service.Consumers {
-				if consumer.Peer == oldData.PeerName.ValueString() {
-					consumerToRemove = i
-					break
-				}
-			}
-
-			if consumerToRemove != -1 {
-				service.Consumers = append(service.Consumers[:consumerToRemove], service.Consumers[consumerToRemove+1:]...)
-			}
-		}
-	}
+	removeExportedService(exportedServiceConfigEntry, oldData.ServiceToExport.ValueString(), oldData.PeerName.ValueString())
 
 	newConsumer := api.ServiceConsumer{
 		Peer: data.PeerName.ValueString(),
@@ -268,7 +253,7 @@ func (r *ConsulExportedServiceResource) Update(ctx context.Context, req resource
 
 	data.Id = types.StringValue(fmt.Sprintf("%s_%s", data.PeerName.ValueString(), data.ServiceToExport.ValueString()))
 
-	tflog.Trace(ctx, "exported service")
+	tflog.Debug(ctx, "exported service")
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -288,22 +273,7 @@ func (r *ConsulExportedServiceResource) Delete(ctx context.Context, req resource
 
 	exportedServiceConfigEntry := readExportedServices(r.client)
 
-	for _, service := range exportedServiceConfigEntry.Services {
-		if service.Name == data.ServiceToExport.ValueString() {
-			consumerToRemove := -1
-
-			for i, consumer := range service.Consumers {
-				if consumer.Peer == data.PeerName.ValueString() {
-					consumerToRemove = i
-					break
-				}
-			}
-
-			if consumerToRemove != -1 {
-				service.Consumers = append(service.Consumers[:consumerToRemove], service.Consumers[consumerToRemove+1:]...)
-			}
-		}
-	}
+	removeExportedService(exportedServiceConfigEntry, data.ServiceToExport.ValueString(), data.PeerName.ValueString())
 
 	err := writeExportedServices(r.client, exportedServiceConfigEntry)
 
@@ -313,6 +283,34 @@ func (r *ConsulExportedServiceResource) Delete(ctx context.Context, req resource
 	}
 
 	resp.State.RemoveResource(ctx)
+}
+
+func removeExportedService(exportedServiceConfigEntry *api.ExportedServicesConfigEntry, serviceToRremove, consumerToRemove string) {
+	var serviceToRemoveIdx int
+
+	for idx_services, service := range exportedServiceConfigEntry.Services {
+		if service.Name == serviceToRremove {
+			serviceToRemoveIdx = idx_services
+			break
+		}
+	}
+
+	var consumerToRemoveIdx int
+
+	for idx_consumers, consumer := range exportedServiceConfigEntry.Services[serviceToRemoveIdx].Consumers {
+		if consumer.Peer == consumerToRemove {
+			consumerToRemoveIdx = idx_consumers
+			break
+		}
+	}
+
+	newConsumers := append(exportedServiceConfigEntry.Services[serviceToRemoveIdx].Consumers[:consumerToRemoveIdx], exportedServiceConfigEntry.Services[serviceToRemoveIdx].Consumers[consumerToRemoveIdx+1:]...)
+
+	if len(newConsumers) == 0 {
+		exportedServiceConfigEntry.Services = append(exportedServiceConfigEntry.Services[:serviceToRemoveIdx], exportedServiceConfigEntry.Services[serviceToRemoveIdx+1:]...)
+	} else {
+		exportedServiceConfigEntry.Services[serviceToRemoveIdx].Consumers = newConsumers
+	}
 }
 
 func (r *ConsulExportedServiceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

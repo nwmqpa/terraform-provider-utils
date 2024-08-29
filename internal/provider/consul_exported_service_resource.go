@@ -144,9 +144,9 @@ func (r *ConsulExportedServiceResource) Create(ctx context.Context, req resource
 		Peer: data.PeerName.ValueString(),
 	}
 
-	for _, service := range exportedServiceConfigEntry.Services {
-		if service.Name == data.ServiceToExport.ValueString() {
-			service.Consumers = append(service.Consumers, newConsumer)
+	for idx := range exportedServiceConfigEntry.Services {
+		if exportedServiceConfigEntry.Services[idx].Name == data.ServiceToExport.ValueString() {
+			exportedServiceConfigEntry.Services[idx].Consumers = append(exportedServiceConfigEntry.Services[idx].Consumers, newConsumer)
 			inserted = true
 		}
 	}
@@ -228,9 +228,9 @@ func (r *ConsulExportedServiceResource) Update(ctx context.Context, req resource
 
 	inserted := false
 
-	for _, service := range exportedServiceConfigEntry.Services {
-		if service.Name == data.ServiceToExport.ValueString() {
-			service.Consumers = append(service.Consumers, newConsumer)
+	for idx := range exportedServiceConfigEntry.Services {
+		if exportedServiceConfigEntry.Services[idx].Name == data.ServiceToExport.ValueString() {
+			exportedServiceConfigEntry.Services[idx].Consumers = append(exportedServiceConfigEntry.Services[idx].Consumers, newConsumer)
 			inserted = true
 		}
 	}
